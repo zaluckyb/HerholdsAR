@@ -71,3 +71,8 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# Exclude glb models of Containers
+
+/Assets/3dModels/CES2/CES2.glb
+/Assets/3dModels/CES4/CES4.glb
