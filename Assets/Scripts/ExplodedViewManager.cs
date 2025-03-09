@@ -1,5 +1,6 @@
 using UnityEngine;
 using Oculus.Interaction;
+using System.Collections;
 
 [System.Serializable]
 public class ModelPart
@@ -13,136 +14,131 @@ public class ModelPart
     public Vector3 explodedEulerRotation;
 
     [HideInInspector] public Vector3 originalScale;
-    public Vector3 explodedScale = Vector3.one;
+    public Vector3 explodedScale;
 
-    [HideInInspector] public GameObject previousPart;
+    private GameObject previousPart;
 
-    public void UpdateOriginalValues()
+    public void UpdateOriginalStates()
     {
-        if (part != previousPart && part != null)
+        if (part != null && previousPart != part)
         {
             originalPosition = part.transform.localPosition;
-            explodedPosition = originalPosition;
-
             originalRotation = part.transform.localRotation;
-            explodedEulerRotation = originalRotation.eulerAngles;
-
             originalScale = part.transform.localScale;
-            explodedScale = originalScale;
 
+            explodedScale = explodedScale == Vector3.zero ? originalScale : explodedScale;
             previousPart = part;
         }
     }
 }
 
-public class ExplodedViewManager : MonoBehaviour
+[System.Serializable]
+public class Model
 {
-    [Header("Model References")]
+    public string modelName;
     public GameObject modelRoot;
     public ModelPart[] modelParts;
+    public PokeInteractable pokeInteractable;
+    public float explosionDuration = 1.0f;
 
-    [Header("Exploded View Settings")]
-    public float explosionDuration = 0.5f;
+    [HideInInspector] public bool isExploded = false;
 
-    [Header("Interaction")]
-    [SerializeField]
-    private PokeInteractable pokeInteractable;
+    public void UpdateAllOriginalStates()
+    {
+        foreach (var part in modelParts)
+            part.UpdateOriginalStates();
+    }
+}
 
-    public bool isExploded = false;
-    private bool previousExplodedState = false;
+public class ExplodedViewManager : MonoBehaviour
+{
+    [Header("Models Array")]
+    public Model[] models;
 
     private void Start()
     {
-        StoreOriginalStates();
+        foreach (var model in models)
+        {
+            model.UpdateAllOriginalStates();
 
-        if (pokeInteractable != null)
-            pokeInteractable.WhenStateChanged += HandlePoke;
+            if (model.pokeInteractable != null)
+                model.pokeInteractable.WhenStateChanged += (args) => HandlePoke(args, model);
+        }
     }
 
     private void OnDestroy()
     {
-        if (pokeInteractable != null)
-            pokeInteractable.WhenStateChanged -= HandlePoke;
-    }
-
-    private void OnValidate()
-    {
-        foreach (ModelPart mp in modelParts)
+        foreach (var model in models)
         {
-            mp.UpdateOriginalValues();
+            if (model.pokeInteractable != null)
+                model.pokeInteractable.WhenStateChanged -= (args) => HandlePoke(args, model);
         }
     }
 
-    public void StoreOriginalStates()
+    private void HandlePoke(InteractableStateChangeArgs args, Model model)
     {
-        foreach (ModelPart mp in modelParts)
+        if (args.NewState == InteractableState.Select)
         {
-            if (mp.part != null)
-            {
-                mp.originalPosition = mp.part.transform.localPosition;
-                mp.originalScale = mp.part.transform.localScale;
-                mp.originalRotation = mp.part.transform.localRotation;
-            }
+            StopAllCoroutines();
+            model.isExploded = !model.isExploded;
+            StartCoroutine(ExplodeModel(model, model.isExploded));
         }
     }
 
-    private void Update()
+    private IEnumerator MovePart(Transform part, Vector3 targetPos, Quaternion targetRot, Vector3 targetScale, float duration)
     {
-        if (previousExplodedState != isExploded)
-        {
-            previousExplodedState = isExploded;
-            if (isExploded)
-                ExplodeView();
-            else
-                ImplodeView();
-        }
-    }
-
-    public void ExplodeView()
-    {
-        StopAllCoroutines();
-        foreach (ModelPart mp in modelParts)
-        {
-            if (mp.part != null)
-                StartCoroutine(MoveRotateScalePart(mp.part, mp.part.transform.localPosition, mp.explodedPosition, mp.part.transform.localRotation, Quaternion.Euler(mp.explodedEulerRotation), mp.part.transform.localScale, mp.explodedScale));
-        }
-    }
-
-    public void ImplodeView()
-    {
-        StopAllCoroutines();
-        foreach (ModelPart mp in modelParts)
-        {
-            if (mp.part != null)
-                StartCoroutine(MoveRotateScalePart(mp.part, mp.part.transform.localPosition, mp.originalPosition, mp.part.transform.localRotation, mp.originalRotation, mp.part.transform.localScale, mp.originalScale));
-        }
-    }
-
-    private System.Collections.IEnumerator MoveRotateScalePart(GameObject part, Vector3 startPos, Vector3 endPos, Quaternion startRot, Quaternion endRot, Vector3 startScale, Vector3 endScale)
-    {
+        Vector3 startPos = part.localPosition;
+        Quaternion startRot = part.localRotation;
+        Vector3 startScale = part.localScale;
         float elapsed = 0f;
-        while (elapsed < explosionDuration)
-        {
-            float t = Mathf.SmoothStep(0, 1, elapsed / explosionDuration);
 
-            part.transform.localPosition = Vector3.Lerp(startPos, endPos, t);
-            part.transform.localRotation = Quaternion.Slerp(startRot, endRot, t);
-            part.transform.localScale = Vector3.Lerp(startScale, endScale, t);
+        while (elapsed < duration)
+        {
+            float t = elapsed / duration;
+            part.localPosition = Vector3.Lerp(startPos, targetPos, t);
+            part.localRotation = Quaternion.Slerp(startRot, targetRot, t);
+            part.localScale = Vector3.Lerp(startScale, targetScale, t);
 
             elapsed += Time.deltaTime;
             yield return null;
         }
 
-        part.transform.localPosition = endPos;
-        part.transform.localRotation = endRot;
-        part.transform.localScale = endScale;
+        part.localPosition = targetPos;
+        part.localRotation = targetRot;
+        part.localScale = targetScale;
     }
 
-    private void HandlePoke(InteractableStateChangeArgs args)
+    private IEnumerator ExplodeModel(Model model, bool explode)
     {
-        if (args.NewState == InteractableState.Select)
+        foreach (var mp in model.modelParts)
         {
-            isExploded = !isExploded;
+            Vector3 targetPos = explode ? mp.explodedPosition : mp.originalPosition;
+            Quaternion targetRot = explode ? Quaternion.Euler(mp.explodedEulerRotation) : mp.originalRotation;
+            Vector3 targetScale = explode ? mp.explodedScale : mp.originalScale;
+
+            StartCoroutine(MovePart(mp.part.transform, targetPos, targetRot, targetScale, model.explosionDuration));
+        }
+
+        yield return new WaitForSeconds(model.explosionDuration);
+    }
+
+    public void ExplodeAll()
+    {
+        foreach (var model in models)
+        {
+            StopAllCoroutines();
+            model.isExploded = true;
+            StartCoroutine(ExplodeModel(model, true));
+        }
+    }
+
+    public void ImplodeAll()
+    {
+        foreach (var model in models)
+        {
+            StopAllCoroutines();
+            model.isExploded = false;
+            StartCoroutine(ExplodeModel(model, false));
         }
     }
 }
