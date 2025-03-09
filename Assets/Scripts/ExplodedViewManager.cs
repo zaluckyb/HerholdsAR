@@ -1,10 +1,10 @@
 using UnityEngine;
-using System.Collections;
+using Oculus.Interaction;
 
 [System.Serializable]
 public class ModelPart
 {
-    public Transform part;
+    public GameObject part;
     [HideInInspector] public Vector3 originalPosition;
     public Vector3 explodedPosition;
 }
@@ -17,20 +17,30 @@ public class ExplodedViewManager : MonoBehaviour
 
     [Header("Exploded View Settings")]
     public float explosionDuration = 0.5f;
-    public bool isExploded = false;
 
-    // Private to track changes
+    [Header("Interaction")]
+    [SerializeField]
+    private PokeInteractable pokeInteractable;
+
+    public bool isExploded = false;
     private bool previousExplodedState = false;
 
     private void Start()
     {
         StoreOriginalPositions();
-        previousExplodedState = isExploded;
+
+        if (pokeInteractable != null)
+            pokeInteractable.WhenStateChanged += HandlePoke;
+    }
+
+    private void OnDestroy()
+    {
+        if (pokeInteractable != null)
+            pokeInteractable.WhenStateChanged -= HandlePoke;
     }
 
     private void Update()
     {
-        // Detect manual change of "isExploded" in Inspector at runtime
         if (previousExplodedState != isExploded)
         {
             previousExplodedState = isExploded;
@@ -45,7 +55,8 @@ public class ExplodedViewManager : MonoBehaviour
     {
         foreach (ModelPart mp in modelParts)
         {
-            mp.originalPosition = mp.part.localPosition;
+            if (mp.part != null)
+                mp.originalPosition = mp.part.transform.localPosition;
         }
     }
 
@@ -54,7 +65,8 @@ public class ExplodedViewManager : MonoBehaviour
         StopAllCoroutines();
         foreach (ModelPart mp in modelParts)
         {
-            StartCoroutine(MovePart(mp.part, mp.part.localPosition, mp.explodedPosition));
+            if (mp.part != null)
+                StartCoroutine(MovePart(mp.part, mp.part.transform.localPosition, mp.explodedPosition));
         }
     }
 
@@ -63,19 +75,28 @@ public class ExplodedViewManager : MonoBehaviour
         StopAllCoroutines();
         foreach (ModelPart mp in modelParts)
         {
-            StartCoroutine(MovePart(mp.part, mp.part.localPosition, mp.originalPosition));
+            if (mp.part != null)
+                StartCoroutine(MovePart(mp.part, mp.part.transform.localPosition, mp.originalPosition));
         }
     }
 
-    private IEnumerator MovePart(Transform part, Vector3 startPos, Vector3 endPos)
+    private System.Collections.IEnumerator MovePart(GameObject part, Vector3 startPos, Vector3 endPos)
     {
-        float elapsedTime = 0f;
-        while (elapsedTime < explosionDuration)
+        float elapsed = 0f;
+        while (elapsed < explosionDuration)
         {
-            part.localPosition = Vector3.Lerp(startPos, endPos, elapsedTime / explosionDuration);
-            elapsedTime += Time.deltaTime;
+            part.transform.localPosition = Vector3.Lerp(startPos, endPos, elapsed / explosionDuration);
+            elapsed += Time.deltaTime;
             yield return null;
         }
-        part.localPosition = endPos;
+        part.transform.localPosition = endPos;
+    }
+
+    private void HandlePoke(InteractableStateChangeArgs args)
+    {
+        if (args.NewState == InteractableState.Select)
+        {
+            isExploded = !isExploded;
+        }
     }
 }
