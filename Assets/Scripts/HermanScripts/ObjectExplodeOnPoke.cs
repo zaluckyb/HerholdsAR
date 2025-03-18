@@ -49,7 +49,6 @@ public class ObjectExplodeOnPoke : MonoBehaviour
             return;
         }
 
-        // Store original local positions
         foreach (var obj in objectsToExplode)
         {
             if (obj != null)
@@ -58,10 +57,7 @@ public class ObjectExplodeOnPoke : MonoBehaviour
             }
         }
 
-        // Compute exploded positions relative to the root
         CalculateExplodedPositions();
-
-        // Subscribe to poke event
         pokeInteractable.WhenStateChanged += HandlePoke;
     }
 
@@ -85,38 +81,20 @@ public class ObjectExplodeOnPoke : MonoBehaviour
     private void CalculateExplodedPositions()
     {
         explodedLocalPositions.Clear();
-
-        // Find total width of all objects
-        float totalWidth = 0f;
-        float[] objectWidths = new float[objectsToExplode.Length];
-
-        for (int i = 0; i < objectsToExplode.Length; i++)
-        {
-            if (objectsToExplode[i] != null)
-            {
-                Renderer renderer = objectsToExplode[i].GetComponent<Renderer>();
-                float width = renderer != null ? renderer.bounds.size.x : 1f; // Default width if no renderer
-                objectWidths[i] = width;
-                totalWidth += width;
-            }
-        }
-
-        // Compute starting X position so objects are centered relative to the root
-        float startX = -(totalWidth * spacingMultiplier * 0.5f);
+        
+        float spacing = spacingMultiplier;
+        float totalWidth = (objectsToExplode.Length - 1) * spacing;
+        float startX = -totalWidth * 0.5f;
         float currentX = startX;
 
-        // Assign new local positions along the root's X-axis
         for (int i = 0; i < objectsToExplode.Length; i++)
         {
             GameObject obj = objectsToExplode[i];
             if (obj != null)
             {
-                // Keep local Y and Z positions the same, only modify X
                 Vector3 newLocalPosition = new Vector3(currentX, originalLocalPositions[obj].y, originalLocalPositions[obj].z);
                 explodedLocalPositions[obj] = newLocalPosition;
-
-                // Move to the next position with spacing
-                currentX += objectWidths[i] * spacingMultiplier;
+                currentX += spacing;
             }
         }
     }
@@ -141,7 +119,6 @@ public class ObjectExplodeOnPoke : MonoBehaviour
             {
                 if (obj != null)
                 {
-                    // Move objects in local space to ensure they stay aligned with root
                     Vector3 newLocalPosition = Vector3.Lerp(startLocalPositions[obj], targetLocalPositions[obj], time);
                     obj.transform.position = rootObject.TransformPoint(newLocalPosition);
                 }
