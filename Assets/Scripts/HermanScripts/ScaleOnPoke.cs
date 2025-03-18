@@ -26,6 +26,7 @@ public class ScaleOnPoke : MonoBehaviour
 
     private Vector3 originalScale;
     private Vector3 originalPosition;
+    private Quaternion originalRotation;
     private bool isScaled = false;
 
     private void Start()
@@ -49,9 +50,10 @@ public class ScaleOnPoke : MonoBehaviour
             return;
         }
 
-        // Store original scale and position
+        // Store original scale, position, and rotation
         originalScale = rootObject.localScale;
         originalPosition = rootObject.position;
+        originalRotation = rootObject.rotation;
 
         // Subscribe to poke event
         pokeInteractable.WhenStateChanged += HandlePoke;
@@ -71,33 +73,36 @@ public class ScaleOnPoke : MonoBehaviour
         {
             if (!isScaled)
             {
-                StartCoroutine(ScaleObject(pivotPoint.position, targetScale));
+                StartCoroutine(ScaleAndMoveObject(pivotPoint.position, pivotPoint.rotation, targetScale));
             }
             else
             {
-                StartCoroutine(ScaleObject(originalPosition, originalScale));
+                StartCoroutine(ScaleAndMoveObject(originalPosition, originalRotation, originalScale));
             }
 
             isScaled = !isScaled;
         }
     }
 
-    private IEnumerator ScaleObject(Vector3 targetPosition, Vector3 targetScale)
+    private IEnumerator ScaleAndMoveObject(Vector3 targetPosition, Quaternion targetRotation, Vector3 targetScale)
     {
         float time = 0;
         Vector3 startScale = rootObject.localScale;
         Vector3 startPosition = rootObject.position;
+        Quaternion startRotation = rootObject.rotation;
 
         while (time < 1)
         {
             time += Time.deltaTime * scaleSpeed;
             rootObject.localScale = Vector3.Lerp(startScale, targetScale, time);
             rootObject.position = Vector3.Lerp(startPosition, targetPosition, time);
+            rootObject.rotation = Quaternion.Slerp(startRotation, targetRotation, time);
             yield return null;
         }
 
         // Ensure final values are exactly as expected
         rootObject.localScale = targetScale;
         rootObject.position = targetPosition;
+        rootObject.rotation = targetRotation;
     }
 }
