@@ -12,6 +12,8 @@ EditorBuildSettings:
     path: Assets/Scenes/Herholds.unity
     guid: 8bf71a5c0e560044eb8dfe8a40dd3704
   m_configObjects:
+    Unity.XR.Oculus.Settings: {fileID: 11400000, guid: 520266afc76dcba429305daa5206707c,
+      type: 2}
     com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 3d886d4fa326ced43a5157e95f518738,
       type: 2}
     com.unity.xr.openxr.settings4: {fileID: 11400000, guid: db04a0e198bb4b444a351960aa894a42,
